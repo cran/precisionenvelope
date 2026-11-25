@@ -1,0 +1,17 @@
+bibentry(
+  bibtype = "Article",
+  title = "Sharp Estimand-Specific Precision Envelopes for Blockwise Missing Data Under Missing at Random",
+  author = person("Satoshi", "Nakamura"),
+  journal = "Stats",
+  year = "2026",
+  volume = "9",
+  number = "5",
+  pages = "110",
+  doi = "10.3390/stats9050110",
+  textVersion = paste(
+    "Nakamura S (2026).",
+    "Sharp estimand-specific precision envelopes for blockwise missing data",
+    "under missing at random. Stats, 9(5), 110.",
+    "doi:10.3390/stats9050110"
+  )
+)

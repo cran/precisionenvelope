@@ -1,0 +1,167 @@
+---
+title: "How much precision survives missing data?"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{How much precision survives missing data?}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 6.5,
+                      fig.height = 4.8)
+has_survival <- requireNamespace("survival", quietly = TRUE)
+```
+
+```{r setup}
+library(precisionenvelope)
+```
+
+## The question
+
+A study expects a quarter of its outcomes to be missing. Is the planned
+precision still within reach? The overall missingness rate cannot answer
+this on its own. Under missing at random (MAR), the efficient variance
+depends on which units go missing: losing outcomes where the residual
+variance is small costs little, and losing them where it is large costs a
+great deal. Rules of thumb that tolerate a fixed percentage of missing data
+treat every mechanism with that rate alike.
+
+The package implements the precision envelope of Nakamura (2026), which
+replaces the rule of thumb with a calculation. For a stated overall
+observation rate $p$ and a lower bound $\pi_L$ on the observation
+probability, it returns the sharp range of efficient variance that the
+admissible MAR mechanisms can produce. Against a precision requirement, each
+rate is then *guaranteed* (every admissible mechanism meets the
+requirement), *allocation-sensitive* (some mechanisms meet it and others do
+not) or *inadmissible* (no admissible mechanism meets it).
+
+## Planning without data
+
+At the design stage the inputs are the share $R^2$ of the outcome variance
+explained by the always observed covariates, the lower bound $\pi_L$, and a
+law for the residual variance $b(W) = \mathrm{Var}(Y \mid W)$. With a
+constant residual variance, MCAR is the favorable mechanism, and the
+envelope reduces to the interval between MCAR and the adverse mechanism.
+
+```{r}
+env <- precision_envelope(p = c(0.95, 0.85, 0.75, 0.65), lower = 0.10,
+                          r2 = 0.30, target = 0.80)
+env
+```
+
+When the residual variance differs across covariate profiles, the favorable
+mechanism can do better than MCAR, because it concentrates the missing
+outcomes where they carry little information. A gamma law with a stated
+coefficient of variation is a convenient planning assumption; fitted values
+from a pilot study can be used instead.
+
+```{r}
+het <- precision_envelope(p = c(0.95, 0.85, 0.75, 0.65), lower = 0.10,
+                          r2 = 0.30, b = residual_law_gamma(cv = 0.8),
+                          target = 0.80)
+het
+plot(het)
+```
+
+The shaded region is the set of retentions that some admissible mechanism
+attains. The vertical lines mark the threshold missingness rates: below
+$q_G^*$ the requirement holds whatever the mechanism, and beyond $q_P^*$ it
+fails whatever the mechanism.
+
+## The analytic illustration
+
+Section 5.1 of Nakamura (2026) uses a residual variance that takes the
+values 0.1 and 1.9 on two regions of equal mass, with $A = B = 1$,
+$\pi_L = 0.2$ and a requirement of 80% retention. At 75% observation the
+favorable allocation raises the standard error by 1.2% and MCAR by 8.0%.
+
+```{r}
+ill <- precision_envelope(p = 0.75, lower = 0.2, A = 1, b = c(0.1, 1.9),
+                          target = 0.80)
+ill$table[, c("q", "se_inflation_favorable", "se_inflation_mcar",
+              "se_inflation_adverse", "phase")]
+ill$thresholds
+```
+
+The thresholds are $q_G^* = 5.3\%$, $q_{MCAR}^* = 33.3\%$ and
+$q_P^* = 52.0\%$. When the mechanism may separate
+units within a region, the adverse endpoint at 25% missing raises the
+standard error by 47.9%. When the observation probability can depend only on
+the region label, each region is an indivisible stratum. The adverse
+endpoint is then the allocation that observes the high-variance region half
+the time, which raises the standard error by 21.4%, and $q_G^*$ rises to
+17.2%.
+
+```{r}
+strata <- precision_envelope(p = 0.75, lower = 0.2, A = 1, b = c(0.1, 1.9),
+                             covariate = "strata", target = 0.80)
+strata$table[, c("q", "rho_adverse", "se_inflation_adverse")]
+strata$thresholds
+```
+
+## Planning targeted recovery
+
+Starting from that allocation, in which the high-variance half is observed
+only half the time, the cheapest way to restore 80% retention is to recover
+part of the missing outcomes in that half, following the cost-adjusted
+square-root rule. With equal costs, recovering 7.76 outcomes per 100
+participants raises the observation rate to 82.76%.
+
+```{r}
+plan <- recovery_plan(b = c(0.1, 1.9), baseline = c(1, 0.5), A = 1,
+                      target = 0.80)
+plan
+```
+
+## Estimating the envelope from data
+
+`envelope_fit()` estimates the envelope for the mean of a partially observed
+continuous outcome. The example uses the MASLD cases of the public
+`survival::nafld1` data, with baseline body mass index as the outcome and
+age and sex as covariates.
+
+```{r, eval = has_survival}
+nafld1 <- survival::nafld1
+cases <- nafld1[!is.na(nafld1$case.id) & nafld1$id == nafld1$case.id, ]
+dat <- data.frame(bmi = as.numeric(cases$bmi), age = as.numeric(cases$age),
+                  male = as.integer(cases$male == 1))
+dat$age_centered_sq <- (dat$age - mean(dat$age))^2
+
+set.seed(20260901)
+fit <- envelope_fit(dat, outcome = "bmi",
+                    covariates = c("age", "male", "age_centered_sq"),
+                    p = c(0.70, 0.75, 0.80, 0.85, 0.90, 0.97),
+                    lower = 0.05, target = 0.80)
+fit
+plot(fit)
+```
+
+The realized mechanism retained about 86% of the information, close to the
+favorable endpoint at the same observation rate. At the same 15%
+missingness, the adverse endpoint in the table shows how much less an
+admissible mechanism could have retained.
+
+The point classification ignores sampling error. `envelope_bootstrap()`
+refits every nuisance model on resampled units and certifies a phase only
+when a simultaneous band excludes the others. In practice use `R = 999`;
+199 refits keep this vignette fast.
+
+```{r, eval = has_survival}
+set.seed(20260901)
+band <- envelope_bootstrap(fit, R = 199)
+band
+```
+
+## What the package does not do
+
+The package does not impute missing values, does not improve the estimate of
+the target, and does not test MAR. The lower bound $\pi_L$ is an assumption
+stated by the analyst; the fitted share of observation probabilities below
+it is reported only as a diagnostic.
+
+## Reference
+
+Nakamura S (2026). Sharp estimand-specific precision envelopes for blockwise
+missing data under missing at random. *Stats*, 9(5), 110.
+<https://doi.org/10.3390/stats9050110>

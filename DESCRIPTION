@@ -1,0 +1,33 @@
+Package: precisionenvelope
+Type: Package
+Title: Sharp Precision Envelopes for Outcomes Missing at Random
+Version: 0.1.0
+Authors@R: 
+    person("Satoshi", "Nakamura", , "s-nakamura@med.mie-u.ac.jp", role = c("aut", "cre"))
+Description: Computes the range of precision that can survive when an outcome
+    or an all-or-none block of variables is missing at random. For a stated
+    overall observation rate and a lower bound on the observation
+    probability, the package returns the smallest and largest efficient
+    variance that any admissible missingness mechanism can produce, the
+    corresponding information retention and standard error inflation, and
+    whether a precision requirement is guaranteed, depends on the
+    allocation of missingness, or cannot be met. It also plans
+    minimum-cost targeted recovery of missing outcomes, and estimates the
+    envelope from data on a partially observed continuous outcome by
+    cross-fitted one-step estimation with a refitted bootstrap band over a
+    prespecified grid of observation rates. The method is described in
+    Nakamura (2026) <doi:10.3390/stats9050110>.
+License: BSD_3_clause + file LICENSE
+Encoding: UTF-8
+Depends: R (>= 4.1.0)
+Imports: graphics, grDevices, stats
+Suggests: knitr, rmarkdown, survival, testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Language: en-US
+NeedsCompilation: no
+Packaged: 2026-11-05 09:09:43 UTC; nakamura
+Author: Satoshi Nakamura [aut, cre]
+Maintainer: Satoshi Nakamura <s-nakamura@med.mie-u.ac.jp>
+Repository: CRAN
+Date/Publication: 2026-11-25 20:30:16 UTC
